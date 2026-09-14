@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0c0c0a;
+  --foreground: #f3efe4;
+  --panel: #14140f;
+  --panel-2: #1b1b14;
+  --line: #2c2a22;
+  --muted: #b7b09f;
+  --brass: #e0b84c;
+  --brass-2: #f0d48a;
+  --ember: #ff7a3d;
+  --ok: #8fd18a;
+  --warn: #e0b84c;
+  --bad: #ef6b5b;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-brass: var(--brass);
+  --color-brass-2: var(--brass-2);
+  --color-ember: var(--ember);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(224, 184, 76, 0.08), transparent 50%),
+    radial-gradient(900px 500px at -10% 110%, rgba(255, 122, 61, 0.08), transparent 45%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+button,
+select,
+input,
+textarea {
+  outline: none;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--brass);
+}
+
+.field {
+  width: 100%;
+  border-radius: 0.7rem;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  padding: 0.65rem 0.8rem;
+  color: var(--foreground);
+}
