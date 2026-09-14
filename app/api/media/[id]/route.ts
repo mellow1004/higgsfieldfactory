@@ -25,12 +25,34 @@ export async function GET(
 
     const data = fs.readFileSync(filePath);
     const slug = job.brand.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "ad";
+    const total = data.byteLength;
+    const range = request.headers.get("range");
+    const common = {
+      "Content-Type": "video/mp4",
+      "Accept-Ranges": "bytes",
+      "Content-Disposition": `inline; filename="${slug}-${kind}.mp4"`,
+      "Cache-Control": "private, no-store",
+    };
+
+    if (range) {
+      const match = /bytes=(\d+)-(\d*)/.exec(range);
+      const start = match ? Number(match[1]) : 0;
+      const end = match?.[2] ? Number(match[2]) : total - 1;
+      const slice = data.subarray(start, end + 1);
+      return new NextResponse(slice, {
+        status: 206,
+        headers: {
+          ...common,
+          "Content-Range": `bytes ${start}-${end}/${total}`,
+          "Content-Length": String(slice.byteLength),
+        },
+      });
+    }
+
     return new NextResponse(data, {
       headers: {
-        "Content-Type": "video/mp4",
-        "Content-Length": String(data.byteLength),
-        "Content-Disposition": `inline; filename="${slug}-${kind}.mp4"`,
-        "Cache-Control": "private, no-store",
+        ...common,
+        "Content-Length": String(total),
       },
     });
   } catch (error) {

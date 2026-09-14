@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ASPECT_RATIOS,
@@ -38,6 +38,8 @@ export default function ProductionPanel({ username }: { username: string }) {
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const model = getModel(brief.model);
   const duration = coerceDuration(brief.model, brief.duration);
@@ -99,6 +101,9 @@ export default function ProductionPanel({ username }: { username: string }) {
       await postJson("/api/compose", { jobId: created.job.id });
       await refreshJobs();
       setStep("Done");
+      requestAnimationFrame(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Production failed");
     } finally {
@@ -150,7 +155,7 @@ export default function ProductionPanel({ username }: { username: string }) {
                   required
                   value={brief.brand}
                   onChange={(event) => setBrief({ ...brief, brand: event.target.value })}
-                  placeholder="Northline Coffee"
+                  placeholder="Brand name"
                   className="field"
                 />
               </Field>
@@ -159,7 +164,7 @@ export default function ProductionPanel({ username }: { username: string }) {
                   required
                   value={brief.service}
                   onChange={(event) => setBrief({ ...brief, service: event.target.value })}
-                  placeholder="Cold brew subscription"
+                  placeholder="What you sell"
                   className="field"
                 />
               </Field>
@@ -170,7 +175,7 @@ export default function ProductionPanel({ username }: { username: string }) {
                 rows={4}
                 value={brief.message}
                 onChange={(event) => setBrief({ ...brief, message: event.target.value })}
-                placeholder="Ship a 6-second hook: morning ritual, no bitterness, delivered weekly."
+                placeholder="The hook you want the ad to land."
                 className="field resize-y"
               />
             </Field>
@@ -297,7 +302,7 @@ export default function ProductionPanel({ username }: { username: string }) {
           </form>
 
           {activeJob?.finalVideoPath ? (
-            <div className="mt-6 rounded-xl border border-line bg-panel-2 p-4">
+            <div ref={resultRef} className="mt-6 rounded-xl border border-line bg-panel-2 p-4">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="font-medium">Finished ad</h3>
                 <a
@@ -308,12 +313,34 @@ export default function ProductionPanel({ username }: { username: string }) {
                   Download mp4
                 </a>
               </div>
-              <video
-                key={activeJob.videoUrl ?? activeJob.id}
-                src={activeJob.videoUrl ?? undefined}
-                controls
-                className="w-full rounded-lg bg-black"
-              />
+              <div className="flex justify-center overflow-hidden rounded-lg bg-black">
+                <video
+                  ref={videoRef}
+                  key={activeJob.videoUrl ?? activeJob.id}
+                  src={activeJob.videoUrl ?? undefined}
+                  controls
+                  playsInline
+                  preload="auto"
+                  className="max-h-[360px] w-auto max-w-full"
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const video = videoRef.current;
+                    if (!video) return;
+                    if (video.paused) void video.play();
+                    else video.pause();
+                  }}
+                  className="rounded-md border border-line px-3 py-1.5 text-sm hover:border-brass"
+                >
+                  Play / pause
+                </button>
+                <span className="text-xs text-muted">
+                  {activeJob.duration}s clip + end card
+                </span>
+              </div>
               {activeJob.headline ? (
                 <p className="mt-3 text-sm text-muted">
                   {activeJob.eyebrow} · <span className="text-foreground">{activeJob.headline}</span>
