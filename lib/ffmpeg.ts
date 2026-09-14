@@ -40,16 +40,42 @@ export async function ensureLogoPng() {
   return out;
 }
 
+function wrapLines(text: string, maxChars: number, maxLines = 2) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxChars) {
+      current = next;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length >= maxLines) {
+      current = "";
+      break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  return lines.slice(0, maxLines).map((line) => line.slice(0, maxChars));
+}
+
+function fitFont(text: string, width: number, desired: number) {
+  const estimated = Math.floor((width * 0.86) / Math.max(text.length, 1) / 0.58);
+  return Math.max(16, Math.min(desired, estimated));
+}
+
 function drawLayer(
   text: string,
-  yExpr: string,
+  y: number,
   fontSize: number,
   font: string | undefined,
 ) {
   const escaped = escapeDrawtext(text);
   if (!escaped) return null;
   const fontPart = font ? `fontfile=${font}:` : "";
-  return `drawtext=${fontPart}text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=2:bordercolor=black@0.55:x=(w-text_w)/2:y=${yExpr}`;
+  return `drawtext=${fontPart}text='${escaped}':fontsize=${fontSize}:fontcolor=white:borderw=2:bordercolor=black@0.55:x=(w-text_w)/2:y=${y}`;
 }
 
 export async function composeAd(job: Job) {
@@ -69,13 +95,36 @@ export async function composeAd(job: Job) {
   const silentMain = path.join(work, "branded-a.mp4");
   const finalPath = path.join(mediaDir(), `${job.id}-final.mp4`);
   const logoSize = Math.round(Math.min(width, height) * 0.11);
+  const maxChars = Math.max(12, Math.floor(width / 28));
+  const eyebrowSize = fitFont(job.eyebrow || job.brand, width, Math.round(height * 0.032));
+  const headlineSize = Math.round(height * 0.042);
+  const tagSize = fitFont(job.tagline || job.service, width, Math.round(height * 0.03));
+  const ctaSize = fitFont(job.cta || "Learn more", width, Math.round(height * 0.034));
+  let cursorY = logoSize + 36;
+  const overlays: string[] = [];
 
-  const overlays = [
-    drawLayer(job.eyebrow || job.brand, "h*0.07", Math.round(height * 0.035), font),
-    drawLayer(job.headline || job.brand, "h*0.12", Math.round(height * 0.055), font),
-    drawLayer(job.tagline || job.service, "h*0.78", Math.round(height * 0.032), font),
-    drawLayer(job.cta || "Learn more", "h*0.86", Math.round(height * 0.038), font),
-  ].filter(Boolean);
+  for (const line of wrapLines(job.eyebrow || job.brand, maxChars, 1)) {
+    const layer = drawLayer(line, cursorY, eyebrowSize, font);
+    if (layer) overlays.push(layer);
+    cursorY += eyebrowSize + 10;
+  }
+  for (const line of wrapLines(job.headline || job.brand, maxChars, 2)) {
+    const size = fitFont(line, width, headlineSize);
+    const layer = drawLayer(line, cursorY, size, font);
+    if (layer) overlays.push(layer);
+    cursorY += size + 8;
+  }
+
+  const tagLines = wrapLines(job.tagline || job.service, maxChars, 2);
+  const ctaY = Math.round(height * 0.88);
+  let tagY = ctaY - tagLines.length * (tagSize + 8) - 12;
+  for (const line of tagLines) {
+    const layer = drawLayer(line, tagY, tagSize, font);
+    if (layer) overlays.push(layer);
+    tagY += tagSize + 8;
+  }
+  const cta = drawLayer(job.cta || "Learn more", ctaY, ctaSize, font);
+  if (cta) overlays.push(cta);
 
   const videoFilter = [
     `scale=${width}:${height}:force_original_aspect_ratio=increase`,
@@ -111,9 +160,18 @@ export async function composeAd(job: Job) {
     branded,
   ]);
 
+  const brandLines = wrapLines(job.brand, maxChars, 2);
+  const brandSize = fitFont(job.brand, width, Math.round(height * 0.055));
+  const endCtaSize = fitFont(job.cta || "Get started", width, Math.round(height * 0.038));
+  const brandBlock = brandLines.length * (brandSize + 10);
+  let endY = Math.round((height - brandBlock) / 2 - 20);
   const endDraw = [
-    drawLayer(job.brand, "(h-text_h)/2-40", Math.round(height * 0.06), font),
-    drawLayer(job.cta || "Get started", "(h-text_h)/2+36", Math.round(height * 0.04), font),
+    ...brandLines.map((line) => {
+      const layer = drawLayer(line, endY, brandSize, font);
+      endY += brandSize + 10;
+      return layer;
+    }),
+    drawLayer(job.cta || "Get started", endY + 16, endCtaSize, font),
   ]
     .filter(Boolean)
     .join(",");

@@ -3,7 +3,14 @@ import { getStyle } from "./catalog";
 import type { AdCopy, BriefInput } from "./types";
 
 function mockCopy(brief: BriefInput): AdCopy {
-  const headline = brief.message.split(/[.!?]/)[0]?.trim().slice(0, 42) || brief.service;
+  const words = brief.message
+    .replace(/[.!?].*$/, "")
+    .replace(/,/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5);
+  const headline = words.length >= 2 ? words.join(" ") : `Meet ${brief.service}`;
   return {
     videoPrompt: [
       `A ${brief.tone} branded video ad for ${brief.brand}.`,
@@ -13,9 +20,9 @@ function mockCopy(brief: BriefInput): AdCopy {
       `${brief.aspectRatio} composition, ${brief.duration} seconds, no on-screen text, no logos, no watermarks.`,
       "Photoreal commercial footage, smooth camera, premium finishing.",
     ].join(" "),
-    eyebrow: brief.brand.toUpperCase(),
-    headline: headline.length > 8 ? headline : `Meet ${brief.service}`,
-    tagline: brief.service,
+    eyebrow: brief.brand.toUpperCase().slice(0, 22),
+    headline,
+    tagline: brief.service.slice(0, 36),
     cta: "Shop now",
   };
 }
