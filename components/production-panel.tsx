@@ -24,7 +24,7 @@ const emptyBrief = {
   service: "",
   message: "",
   tone: "confident",
-  model: "kling-3.0-turbo",
+  model: "seedance-2.5",
   stylePreset: "cinematic",
   aspectRatio: "9:16" as const,
   duration: 5,

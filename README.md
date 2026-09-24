@@ -30,7 +30,7 @@ cp .env.example .env.local
 | Variable | Required | Notes |
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | for live copy | [console.anthropic.com](https://console.anthropic.com) |
-| `HIGGSFIELD_API_KEY` | for live clips | `KEY_ID:KEY_SECRET` from [cloud.higgsfield.ai](https://cloud.higgsfield.ai) |
+| `HF_CREDENTIALS` | for live clips | `KEY_ID:KEY_SECRET` from [cloud.higgsfield.ai](https://cloud.higgsfield.ai). Official SDK variable. |
 | `SESSION_SECRET` | recommended in prod | long random string |
 | `FACTORY_ADMIN_USER` / `FACTORY_ADMIN_PASSWORD` | optional | default `factory` / `factory` |
 | `DATA_DIR` | optional | SQLite + media, default `./data` |
@@ -63,7 +63,7 @@ Railway runs the Dockerfile, which installs **ffmpeg + DejaVu fonts** and starts
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-HIGGSFIELD_API_KEY=keyid:secret
+HF_CREDENTIALS=keyid:secret
 SESSION_SECRET=long-random-string
 FACTORY_ADMIN_USER=your-user
 FACTORY_ADMIN_PASSWORD=your-strong-password
@@ -95,13 +95,19 @@ Generate on the floor calls them in that order.
 
 ## Higgsfield models
 
-Requests go to `https://platform.higgsfield.ai` as `Authorization: Key $HIGGSFIELD_API_KEY`.
+Live clip generation uses the official `@higgsfield/client` v2 SDK (`subscribe`) with **Seedance 2.5** (`bytedance/seedance-2.5/text-to-video`) and `HF_CREDENTIALS`.
 
-| UI model | Endpoint | Notes |
+Standalone check (billable):
+
+```bash
+npx tsx index.ts
+```
+
+| UI model | Live generate | Notes |
 | --- | --- | --- |
-| Kling 3.0 Turbo | `/kling3_0_turbo` | 5s / 10s, 720p or 1080p |
-| Seedance 2.5 | `/seedance_2_5` | capped at 720p |
-| Veo 3.1 | `/veo3.1` | 4 / 6 / 8s, 16:9 or 9:16 |
+| Seedance 2.5 | `/bytedance/seedance-2.5/text-to-video` | Official text-to-video; 4–30s, 480p/720p |
+| Kling 3.0 Turbo | same Seedance 2.5 path | UI preset; live pipeline uses the verified Seedance SDK call |
+| Veo 3.1 | same Seedance 2.5 path | UI preset; live pipeline uses the verified Seedance SDK call |
 
 Credit numbers on the panel are a local estimate for planning, not live Higgsfield billing.
 

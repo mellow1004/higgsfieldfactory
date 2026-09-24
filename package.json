@@ -6,12 +6,15 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p ${PORT:-3000}",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:seedance": "tsx index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
+    "@higgsfield/client": "^0.2.6",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.3",
     "next": "15.5.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -28,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.9",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

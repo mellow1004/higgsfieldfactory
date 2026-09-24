@@ -12,8 +12,8 @@ export const MODELS = [
   {
     id: "seedance-2.5",
     label: "Seedance 2.5",
-    endpoint: "seedance_2_5",
-    description: "Reference-driven cinematic clips, capped at 720p",
+    endpoint: "bytedance/seedance-2.5/text-to-video",
+    description: "Official Seedance 2.5 text-to-video, capped at 720p",
     creditsPer5s: { "720p": 12, "1080p": 12 },
     aspects: ["16:9", "9:16", "1:1"] as const,
     durations: [4, 5, 6, 8, 10] as const,
