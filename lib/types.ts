@@ -37,6 +37,28 @@ export type Job = {
   updatedAt: string;
 };
 
+export type ReferenceRole = "start-image" | "brand";
+
+export type JobReference = {
+  id: string;
+  jobId: string;
+  role: ReferenceRole;
+  originalName: string;
+  mimeType: string;
+  filePath: string;
+  createdAt: string;
+};
+
+export type PublicReference = {
+  id: string;
+  jobId: string;
+  role: ReferenceRole;
+  originalName: string;
+  mimeType: string;
+  url: string;
+  isImage: boolean;
+};
+
 export type BriefInput = {
   brand: string;
   service: string;

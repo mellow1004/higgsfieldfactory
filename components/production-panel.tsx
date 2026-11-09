@@ -15,9 +15,14 @@ import {
   estimateCredits,
   getModel,
 } from "@/lib/catalog";
-import type { Job } from "@/lib/types";
+import type { Job, PublicReference } from "@/lib/types";
+import ReferenceUploader, { type LocalReference } from "@/components/reference-uploader";
 
-type PublicJob = Job & { videoUrl: string | null; rawVideoUrl: string | null };
+type PublicJob = Job & {
+  videoUrl: string | null;
+  rawVideoUrl: string | null;
+  references?: PublicReference[];
+};
 
 const emptyBrief = {
   brand: "",
@@ -38,6 +43,7 @@ export default function ProductionPanel({ username }: { username: string }) {
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [references, setReferences] = useState<LocalReference[]>([]);
   const resultRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -88,6 +94,21 @@ export default function ProductionPanel({ username }: { username: string }) {
       });
       setActiveId(created.job.id);
       await refreshJobs();
+
+      if (references.length) {
+        setStep("Uploading references");
+        const form = new FormData();
+        for (const item of references) {
+          form.append("files", item.file);
+          form.append("roles", item.role);
+        }
+        const uploaded = await fetch(`/api/jobs/${created.job.id}/references`, {
+          method: "POST",
+          body: form,
+        });
+        const payload = await uploaded.json();
+        if (!uploaded.ok) throw new Error(payload.error || "Could not upload references");
+      }
 
       setStep("Writing copy");
       await postJson("/api/copy", { jobId: created.job.id });
@@ -169,16 +190,29 @@ export default function ProductionPanel({ username }: { username: string }) {
                 />
               </Field>
             </div>
-            <Field label="Message">
+            <Field label="Instructions">
               <textarea
                 required
                 rows={4}
                 value={brief.message}
                 onChange={(event) => setBrief({ ...brief, message: event.target.value })}
-                placeholder="The hook you want the ad to land."
+                placeholder="The hook you want the ad to land. Uploaded references travel with this brief."
                 className="field resize-y"
               />
+              <p className="mt-1 text-xs text-muted">
+                These instructions are sent with any brand/start-image files so copy and
+                generation stay on-brief.
+              </p>
             </Field>
+
+            <div>
+              <span className="mb-1 block text-sm text-muted">References</span>
+              <ReferenceUploader
+                items={references}
+                onChange={setReferences}
+                disabled={busy}
+              />
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Tone">
                 <select
@@ -382,6 +416,11 @@ export default function ProductionPanel({ username }: { username: string }) {
                     </span>
                     <span>{job.creditCost} cr</span>
                     {job.mocked ? <span>mock</span> : null}
+                    {job.references?.length ? (
+                      <span>
+                        {job.references.length} ref{job.references.length === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
                   </div>
                   {job.error ? <p className="mt-2 text-xs text-bad">{job.error}</p> : null}
                 </button>

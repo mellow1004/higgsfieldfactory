@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AspectRatio, Resolution } from "./catalog";
 import { mediaDir } from "./paths";
+import { brandLogoFor } from "./references";
 import type { Job } from "./types";
 import { fontFile, frameSize, runFfmpeg } from "./video";
 
@@ -16,6 +17,20 @@ function escapeDrawtext(text: string) {
     .replace(/%/g, "\\%")
     .replace(/\r?\n/g, " ")
     .slice(0, 80);
+}
+
+async function prepareLogoPng(source: string, dest: string) {
+  await runFfmpeg([
+    "-y",
+    "-i",
+    source,
+    "-vf",
+    "scale=480:-1:force_original_aspect_ratio=decrease",
+    "-frames:v",
+    "1",
+    dest,
+  ]);
+  return dest;
 }
 
 export async function ensureLogoPng() {
@@ -88,8 +103,12 @@ export async function composeAd(job: Job) {
     job.resolution as Resolution,
   );
   const font = fontFile();
-  const logo = await ensureLogoPng();
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "hf-compose-"));
+  const brandLogo = brandLogoFor(job.id);
+  const preparedLogo = path.join(work, "logo.png");
+  const logo = brandLogo
+    ? await prepareLogoPng(brandLogo.filePath, preparedLogo)
+    : await ensureLogoPng();
   const branded = path.join(work, "branded.mp4");
   const endcard = path.join(work, "endcard.mp4");
   const silentMain = path.join(work, "branded-a.mp4");
@@ -163,8 +182,12 @@ export async function composeAd(job: Job) {
   const brandLines = wrapLines(job.brand, maxChars, 2);
   const brandSize = fitFont(job.brand, width, Math.round(height * 0.055));
   const endCtaSize = fitFont(job.cta || "Get started", width, Math.round(height * 0.038));
+  const logoOnEnd = Boolean(brandLogo);
+  const endLogoH = Math.round(height * 0.14);
   const brandBlock = brandLines.length * (brandSize + 10);
-  let endY = Math.round((height - brandBlock) / 2 - 20);
+  const stackH = (logoOnEnd ? endLogoH + 24 : 0) + brandBlock + endCtaSize + 16;
+  let endY = Math.round((height - stackH) / 2);
+  if (logoOnEnd) endY += endLogoH + 24;
   const endDraw = [
     ...brandLines.map((line) => {
       const layer = drawLayer(line, endY, brandSize, font);
@@ -176,31 +199,66 @@ export async function composeAd(job: Job) {
     .filter(Boolean)
     .join(",");
 
-  await runFfmpeg([
-    "-y",
-    "-f",
-    "lavfi",
-    "-i",
-    `color=c=0x0c0c0a:s=${width}x${height}:d=2.5:r=24`,
-    "-f",
-    "lavfi",
-    "-i",
-    "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-vf",
-    endDraw || "null",
-    "-c:v",
-    "libx264",
-    "-pix_fmt",
-    "yuv420p",
-    "-c:a",
-    "aac",
-    "-ar",
-    "44100",
-    "-ac",
-    "2",
-    "-shortest",
-    endcard,
-  ]);
+  if (logoOnEnd) {
+    const logoY = Math.round((height - stackH) / 2);
+    await runFfmpeg([
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=0x0c0c0a:s=${width}x${height}:d=2.5:r=24`,
+      "-i",
+      logo,
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-filter_complex",
+      `[1:v]scale=-1:${endLogoH}:force_original_aspect_ratio=decrease[lg];[0:v][lg]overlay=(W-w)/2:${logoY}[bg];[bg]${endDraw || "null"}[v]`,
+      "-map",
+      "[v]",
+      "-map",
+      "2:a",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-shortest",
+      endcard,
+    ]);
+  } else {
+    await runFfmpeg([
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=0x0c0c0a:s=${width}x${height}:d=2.5:r=24`,
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-vf",
+      endDraw || "null",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      "-ar",
+      "44100",
+      "-ac",
+      "2",
+      "-shortest",
+      endcard,
+    ]);
+  }
 
   await runFfmpeg([
     "-y",

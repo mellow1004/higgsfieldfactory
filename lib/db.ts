@@ -51,6 +51,19 @@ export function getDb() {
     );
 
     CREATE INDEX IF NOT EXISTS jobs_updated_at ON jobs (updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS job_references (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS job_references_job_id ON job_references (job_id);
   `);
 
   globalDb.__factoryDb = database;
