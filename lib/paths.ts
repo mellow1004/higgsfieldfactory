@@ -9,10 +9,15 @@ export function mediaDir() {
   return path.join(dataDir(), "media");
 }
 
+export function refsDir() {
+  return path.join(dataDir(), "refs");
+}
+
 export function dbPath() {
   return path.join(dataDir(), "factory.db");
 }
 
 export function ensureDirs() {
   fs.mkdirSync(mediaDir(), { recursive: true });
+  fs.mkdirSync(refsDir(), { recursive: true });
 }

@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { writeAdCopy } from "@/lib/copy";
 import { jsonError } from "@/lib/http";
 import { applyCopy, getJob, normalizeBrief, updateJob } from "@/lib/jobs";
+import { listReferences } from "@/lib/references";
 import type { BriefInput } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -59,7 +60,8 @@ export async function POST(request: Request) {
           resolution: body.resolution || "720p",
         });
 
-    const { copy, mocked } = await writeAdCopy(brief);
+    const refs = existing ? listReferences(existing.id) : [];
+    const { copy, mocked } = await writeAdCopy(brief, refs);
     const job = existing ? applyCopy(existing.id, copy, mocked) : null;
     return NextResponse.json({ copy, mocked, job });
   } catch (error) {

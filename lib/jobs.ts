@@ -9,6 +9,7 @@ import {
   type Resolution,
 } from "./catalog";
 import { getDb } from "./db";
+import { listReferences, publicReference } from "./references";
 import type { AdCopy, BriefInput, Job } from "./types";
 
 type JobRow = {
@@ -218,5 +219,6 @@ export function publicJob(job: Job) {
     ...job,
     videoUrl: job.finalVideoPath ? `/api/media/${job.id}?kind=final` : null,
     rawVideoUrl: job.rawVideoPath ? `/api/media/${job.id}?kind=raw` : null,
+    references: listReferences(job.id).map(publicReference),
   };
 }

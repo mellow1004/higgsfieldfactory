@@ -3,9 +3,11 @@ import path from "node:path";
 import { createHiggsfieldClient } from "@higgsfield/client/v2";
 import { coerceDuration, coerceResolution, type AspectRatio, type Resolution } from "./catalog";
 import { mediaDir } from "./paths";
+import { startImageFor } from "./references";
 import { fontFile, frameSize, runFfmpeg } from "./video";
 
 export const SEEDANCE_25_T2V = "bytedance/seedance-2.5/text-to-video";
+export const SEEDANCE_25_I2V = "bytedance/seedance-2.5/image-to-video";
 
 export function higgsfieldCredentials() {
   return process.env.HF_CREDENTIALS?.trim() || "";
@@ -24,21 +26,14 @@ type GenerateInput = {
   resolution: Resolution;
 };
 
-function seedanceInput(input: GenerateInput) {
+function videoSettings(input: GenerateInput) {
   const duration = coerceDuration("seedance-2.5", input.duration);
   const resolution = coerceResolution("seedance-2.5", input.resolution);
   const aspect =
     input.aspectRatio === "16:9" || input.aspectRatio === "9:16" || input.aspectRatio === "1:1"
       ? input.aspectRatio
       : "16:9";
-  return {
-    prompt: input.prompt,
-    duration,
-    resolution,
-    aspect_ratio: aspect,
-    output_format: "mp4" as const,
-    generate_audio: true,
-  };
+  return { duration, resolution, aspect };
 }
 
 function videoUrlFrom(result: {
@@ -59,10 +54,59 @@ async function download(url: string, destination: string) {
   fs.writeFileSync(destination, buffer);
 }
 
+function authHeader() {
+  const key = higgsfieldCredentials();
+  if (!key) throw new Error("HF_CREDENTIALS is not set");
+  return `Key ${key}`;
+}
+
+export async function uploadImageToHiggsfield(filePath: string, contentType: string) {
+  const mime = contentType === "image/jpg" ? "image/jpeg" : contentType;
+  const created = await fetch("https://api.higgsfield.ai/files/generate-upload-url", {
+    method: "POST",
+    headers: {
+      Authorization: authHeader(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ content_type: mime }),
+  });
+  const payload = (await created.json()) as {
+    public_url?: string;
+    upload_url?: string;
+    content_type?: string;
+    upload_headers?: Record<string, string>;
+    detail?: unknown;
+  };
+  if (!created.ok || !payload.upload_url || !payload.public_url) {
+    throw new Error("Could not create a Higgsfield upload URL for the start image.");
+  }
+
+  const body = fs.readFileSync(filePath);
+  const uploaded = await fetch(payload.upload_url, {
+    method: "PUT",
+    headers: payload.upload_headers || { "Content-Type": mime },
+    body,
+  });
+  if (!uploaded.ok) {
+    throw new Error("Could not upload the start image to Higgsfield storage.");
+  }
+  return payload.public_url;
+}
+
+function assertTerminal(status: string) {
+  if (status === "failed") throw new Error("Higgsfield generation failed");
+  if (status === "canceled") throw new Error("Higgsfield generation was canceled");
+  if (status === "nsfw") throw new Error("Higgsfield moderated the request");
+  if (status !== "completed") throw new Error(`Higgsfield ended as ${status}`);
+}
+
 export async function generateClip(input: GenerateInput) {
   const outPath = path.join(mediaDir(), `${input.jobId}-raw.mp4`);
+  const startImage = startImageFor(input.jobId);
+  const { duration, resolution, aspect } = videoSettings(input);
+
   if (shouldMockGenerate()) {
-    await writePlaceholderClip(outPath, input);
+    await writePlaceholderClip(outPath, input, startImage?.filePath);
     return { path: outPath, requestId: "mock", mocked: true };
   }
 
@@ -73,41 +117,88 @@ export async function generateClip(input: GenerateInput) {
     pollInterval: 2000,
   });
 
-  const result = await client.subscribe(SEEDANCE_25_T2V, {
-    input: seedanceInput(input),
-    withPolling: true,
-  });
+  const result = startImage
+    ? await client.subscribe(SEEDANCE_25_I2V, {
+        input: {
+          prompt: input.prompt,
+          duration,
+          image_url: await uploadImageToHiggsfield(startImage.filePath, startImage.mimeType),
+          resolution,
+          generate_audio: true,
+        },
+        withPolling: true,
+      })
+    : await client.subscribe(SEEDANCE_25_T2V, {
+        input: {
+          prompt: input.prompt,
+          duration,
+          resolution,
+          aspect_ratio: aspect,
+          output_format: "mp4",
+          generate_audio: true,
+        },
+        withPolling: true,
+      });
 
-  const status = String(result.status);
-  if (status === "failed") {
-    throw new Error("Higgsfield generation failed");
-  }
-  if (status === "canceled") {
-    throw new Error("Higgsfield generation was canceled");
-  }
-  if (status === "nsfw") {
-    throw new Error("Higgsfield moderated the request");
-  }
-  if (status !== "completed") {
-    throw new Error(`Higgsfield ended as ${status}`);
-  }
-
+  assertTerminal(String(result.status));
   const videoUrl = videoUrlFrom(result);
   if (!videoUrl) throw new Error("Higgsfield completed without a video URL");
   await download(videoUrl, outPath);
   return {
     path: outPath,
-    requestId: result.request_id || SEEDANCE_25_T2V,
+    requestId: result.request_id || (startImage ? SEEDANCE_25_I2V : SEEDANCE_25_T2V),
     mocked: false,
   };
 }
 
-async function writePlaceholderClip(outPath: string, input: GenerateInput) {
+async function writePlaceholderClip(
+  outPath: string,
+  input: GenerateInput,
+  startImagePath?: string,
+) {
   const { width, height } = frameSize(input.aspectRatio, input.resolution);
   const font = fontFile();
   const label = font
     ? `drawtext=fontfile=${font}:text='FACTORY MOCK CLIP':fontcolor=0xE0B84C:fontsize=${Math.round(width / 18)}:x=(w-text_w)/2:y=(h-text_h)/2`
     : "null";
+
+  if (startImagePath && fs.existsSync(startImagePath)) {
+    try {
+      await runFfmpeg([
+        "-y",
+        "-loop",
+        "1",
+        "-i",
+        startImagePath,
+        "-f",
+        "lavfi",
+        "-i",
+        `sine=frequency=196:duration=${input.duration}`,
+        "-t",
+        String(input.duration),
+        "-vf",
+        `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},${label}`,
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-ar",
+        "44100",
+        "-ac",
+        "2",
+        "-shortest",
+        "-movflags",
+        "+faststart",
+        outPath,
+      ]);
+      return;
+    } catch {
+      // Fall through to the color placeholder if the still cannot be encoded.
+    }
+  }
+
   await runFfmpeg([
     "-y",
     "-f",
@@ -136,4 +227,3 @@ async function writePlaceholderClip(outPath: string, input: GenerateInput) {
     outPath,
   ]);
 }
-

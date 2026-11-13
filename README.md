@@ -84,14 +84,25 @@ All routes require the session cookie except `/api/auth/login`, `/api/auth/logou
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/copy` | Claude writes `videoPrompt`, `eyebrow`, `headline`, `tagline`, `cta` |
-| `POST /api/generate` | Higgsfield create → poll until complete → download mp4 |
-| `POST /api/compose` | ffmpeg burns text + logo + end card |
+| `POST /api/copy` | Claude writes `videoPrompt`, `eyebrow`, `headline`, `tagline`, `cta` (sees brand images when uploaded) |
+| `POST /api/generate` | Higgsfield Seedance 2.5 text-to-video, or image-to-video when a start image is attached |
+| `POST /api/compose` | ffmpeg burns text + logo + end card (brand logo if you uploaded one) |
 | `POST /api/jobs` | enqueue a brief on the shared board |
+| `POST /api/jobs/:id/references` | attach start-image / brand files to a job (`/data/refs`) |
 | `GET /api/jobs` | list board rows |
 | `GET /api/media/:id` | stream raw or final mp4 |
 
 Generate on the floor calls them in that order.
+
+## References
+
+The production panel accepts optional start-image and brand/inspiration files (JPEG, PNG, WebP, GIF, PDF). They are stored under `/data/refs` (or `./data/refs` locally) and linked to the job in SQLite.
+
+- **Instructions** travel with those files: Claude sees brand images as vision input and writes copy/prompt to match.
+- A **Start image** switches live generate to Seedance 2.5 image-to-video (`image_url` after a Higgsfield file upload). Mock mode Ken-burns the still instead.
+- A brand image whose filename contains `logo` (else the first brand image) replaces the placeholder on the end card.
+
+With no uploads, copy → generate → compose is unchanged.
 
 ## Higgsfield models
 
@@ -106,6 +117,7 @@ npx tsx index.ts
 | UI model | Live generate | Notes |
 | --- | --- | --- |
 | Seedance 2.5 | `/bytedance/seedance-2.5/text-to-video` | Official text-to-video; 4–30s, 480p/720p |
+| Seedance 2.5 + start image | `/bytedance/seedance-2.5/image-to-video` | Public `image_url` via Higgsfield file upload |
 | Kling 3.0 Turbo | same Seedance 2.5 path | UI preset; live pipeline uses the verified Seedance SDK call |
 | Veo 3.1 | same Seedance 2.5 path | UI preset; live pipeline uses the verified Seedance SDK call |
 
